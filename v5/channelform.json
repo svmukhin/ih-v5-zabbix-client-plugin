@@ -23,27 +23,27 @@
       "type": "droplist",
       "data": [
         {
-          "id": 0,
-          "title": "Numeric float"
+          "id": "NumericFloat",
+          "title": "NumericFloat"
         },
         {
-          "id": 1,
+          "id": "Character",
           "title": "Character"
         },
         {
-          "id": 2,
+          "id": "Log",
           "title": "Log"
         },
         {
-          "id": 3,
-          "title": "Numeric unsignes"
+          "id": "NumericUnsigned",
+          "title": "NumericUnsigned"
         },
         {
-          "id": 4,
-          "title": "text"
+          "id": "Text",
+          "title": "Text"
         }
       ],
-      "default": 3
+      "default": "NumericUnsigned"
     },
     { "prop": "description", "title": "Description", "type": "input" }
   ],

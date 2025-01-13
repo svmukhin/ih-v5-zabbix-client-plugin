@@ -9,7 +9,6 @@ module.exports = async function (plugin) {
   main(plugin.channels.data);
 
   function main(channels) {
-    groupChannels = groupByUniq(channels, "sessionname");
     monitor();
   }
 
