@@ -37,6 +37,12 @@
       "title": "Zabbix Api User Password",
       "type": "password",
       "default": "zabbix"
+    },
+    {
+      "prop": "interval",
+      "title": "Request Interval (sec)",
+      "type": "number",
+      "default": 60
     }
   ],
 
