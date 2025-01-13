@@ -1,0 +1,33 @@
+{
+  "grid": [
+    { "id": "p1", "xs": 12, "class": "main", "table": "devhard" },
+    {
+      "id": "hostcommon",
+      "xs": 12,
+      "class": "main",
+      "table": "devhard",
+      "hide": "data.p1.foldertype != 'node'"
+    }
+  ],
+  "spacing": 4,
+
+  "p1": [
+    { "prop": "chan", "title": "$Name", "type": "input" },
+    { "prop": "foldertype", "title": "", "type": "text", "hide": "1==1" }
+  ],
+
+  "hostcommon": [
+    {
+      "prop": "hostname",
+      "title": "Host Name",
+      "type": "input",
+      "default": "pNgN"
+    },
+    {
+      "prop": "description",
+      "title": "Description",
+      "type": "input",
+      "default": ""
+    }
+  ]
+}

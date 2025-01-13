@@ -1,0 +1,65 @@
+{
+  "grid": [
+    {
+      "id": "pnode",
+      "xs": 4,
+      "class": "main",
+      "table": "devhard_with_parent_node",
+      "hide": "data.pnode.foldertype != 'node'"
+    },
+    { "id": "p2", "xs": 12, "class": "main", "table": "devhard" },
+    { "id": "p3", "xs": 12, "class": "main", "table": "devhard" }
+  ],
+  "spacing": 4,
+
+  "pnode": [{ "prop": "hostname", "title": "Host Name", "type": "text" }],
+
+  "p2": [
+    { "prop": "chan", "title": "Name", "type": "input" },
+    { "prop": "itemkey", "title": "Item Key", "type": "input" },
+    {
+      "prop": "dataType",
+      "title": "Data type",
+      "type": "droplist",
+      "data": [
+        {
+          "id": 0,
+          "title": "Numeric float"
+        },
+        {
+          "id": 1,
+          "title": "Character"
+        },
+        {
+          "id": 2,
+          "title": "Log"
+        },
+        {
+          "id": 3,
+          "title": "Numeric unsignes"
+        },
+        {
+          "id": 4,
+          "title": "text"
+        }
+      ],
+      "default": 3
+    },
+    { "prop": "description", "title": "Description", "type": "input" }
+  ],
+
+  "p3": [
+    {
+      "prop": "r",
+      "title": "$Read",
+      "type": "cb",
+      "hide": "data.p2.dataType=='Method'"
+    },
+    {
+      "prop": "calc",
+      "title": "$Devhard_Calc",
+      "type": "input",
+      "hide": "!data.p3.r"
+    }
+  ]
+}
