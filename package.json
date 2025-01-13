@@ -1,0 +1,11 @@
+{
+  "name": "ih-v5-zabbix-client-plugin",
+  "version": "5.0.0",
+  "description": "Zabbix client plugin for IntraScada",
+  "main": "index.js",
+  "author": "Sergei Mukhin",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.7.9"
+  }
+}
