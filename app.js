@@ -23,13 +23,11 @@ module.exports = async function (plugin) {
       interval = plugin.params.data.interval * 1000;
     }
 
-    auth = authenticate(apiUsername, apiPassword);
+    auth = await authenticate(apiUsername, apiPassword);
 
     hostIds = await getHostIds(plugin.channels.data);
 
-    let keys = plugin.channels.data.map((channel) => {
-      channel.itemkey;
-    });
+    let keys = plugin.channels.data.map((channel) => channel.itemkey);
     itemKeys = [...new Set(keys)];
 
     monitor(plugin.channels.data);
@@ -51,7 +49,7 @@ module.exports = async function (plugin) {
         params: {
           output: ["extend"],
           hostids: hostIds,
-          search: { key_: uniqueKeys },
+          search: { key_: itemKeys },
         },
         auth: auth,
         id: requestId,
@@ -107,9 +105,7 @@ module.exports = async function (plugin) {
 
   async function getHostIds(channels) {
     try {
-      let hosts = channels.map((channel) => {
-        channel.hostname;
-      });
+      let hosts = channels.map((channel) => channel.hostname);
       let uniqueHosts = [...new Set(hosts)];
 
       const response = await axios.post(apiUrl, {
