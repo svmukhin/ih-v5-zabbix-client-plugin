@@ -1,5 +1,6 @@
 const util = require("util");
 const axios = require("axios");
+const { exit } = require("process");
 
 module.exports = async function (plugin) {
   let auth;
@@ -8,7 +9,7 @@ module.exports = async function (plugin) {
   let apiPassword;
   let toSend = [];
   let requestId;
-  let hostIds = [];
+  let hostsArray = [];
   let itemKeys = [];
   let interval = 15000;
 
@@ -25,7 +26,7 @@ module.exports = async function (plugin) {
 
     auth = await authenticate(apiUsername, apiPassword);
 
-    hostIds = await getHostIds(plugin.channels.data);
+    await setHosts(plugin.channels.data);
 
     let keys = plugin.channels.data.map((channel) => channel.itemkey);
     itemKeys = [...new Set(keys)];
@@ -47,8 +48,8 @@ module.exports = async function (plugin) {
         jsonrpc: "2.0",
         method: "item.get",
         params: {
-          output: ["extend"],
-          hostids: hostIds,
+          output: "extend",
+          hostids: hostsArray.map((host) => host.hostid),
           search: { key_: itemKeys },
         },
         auth: auth,
@@ -57,9 +58,14 @@ module.exports = async function (plugin) {
 
       requestId++;
       let items = response.data.result;
+
       channels.forEach((channel) => {
         let item = items.find((it) => {
-          return channel.itemkey == it.key_ && channel.hostname == it.host;
+          return (
+            channel.itemkey === it.key_ &&
+            hostsArray.find((obj) => obj.host === channel.hostname).hostid ===
+              it.hostid
+          );
         });
 
         if (item) {
@@ -100,10 +106,11 @@ module.exports = async function (plugin) {
       return response.data.result;
     } catch (error) {
       plugin.log("Error in authenticate: " + util.inspect(error));
+      exit(1, "Error in authenticate");
     }
   }
 
-  async function getHostIds(channels) {
+  async function setHosts(channels) {
     try {
       let hosts = channels.map((channel) => channel.hostname);
       let uniqueHosts = [...new Set(hosts)];
@@ -112,7 +119,7 @@ module.exports = async function (plugin) {
         jsonrpc: "2.0",
         method: "host.get",
         params: {
-          output: ["hostid"],
+          output: ["hostid", "host"],
           filter: { host: uniqueHosts },
         },
         auth: auth,
@@ -120,11 +127,10 @@ module.exports = async function (plugin) {
       });
 
       requestId++;
-      return response.data.result.map((host) => {
-        host.hostid;
-      });
+      hostsArray = response.data.result;
     } catch (error) {
       plugin.log("Error in getHostIds: " + util.inspect(error));
+      exit(2, "Error in getHostIds");
     }
   }
 };
