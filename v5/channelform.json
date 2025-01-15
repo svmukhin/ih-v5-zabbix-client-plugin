@@ -1,50 +1,35 @@
 {
   "grid": [
-    {
-      "id": "pnode",
-      "xs": 4,
-      "class": "main",
-      "table": "devhard_with_parent_node",
-      "hide": "data.pnode.foldertype != 'node'"
-    },
     { "id": "p2", "xs": 12, "class": "main", "table": "devhard" },
-    { "id": "p3", "xs": 12, "class": "main", "table": "devhard" }
+    { "id": "p3", "xs": 12, "class": "main", "table": "devhard" },
+    { "id": "p4", "xs": 12, "class": "main", "table": "devhard" }
   ],
   "spacing": 4,
 
-  "pnode": [{ "prop": "hostname", "title": "Host Name", "type": "text" }],
-
   "p2": [
     { "prop": "chan", "title": "Name", "type": "input" },
-    { "prop": "itemkey", "title": "Item Key", "type": "input" },
+    { "prop": "itemid", "title": "Item ID", "type": "input" },
     {
-      "prop": "dataType",
-      "title": "Data type",
+      "prop": "itemtype",
+      "title": "Item type",
       "type": "droplist",
       "data": [
         {
-          "id": "NumericFloat",
-          "title": "NumericFloat"
+          "id": "Host",
+          "title": "Host"
         },
         {
-          "id": "Character",
-          "title": "Character"
+          "id": "Item",
+          "title": "Item"
         },
         {
-          "id": "Log",
-          "title": "Log"
-        },
-        {
-          "id": "NumericUnsigned",
-          "title": "NumericUnsigned"
-        },
-        {
-          "id": "Text",
-          "title": "Text"
+          "id": "Trigger",
+          "title": "Trigger"
         }
       ],
-      "default": "NumericUnsigned"
+      "default": "Host"
     },
+    { "prop": "valuename", "title": "Vaue Name", "type": "input" },
     { "prop": "description", "title": "Description", "type": "input" }
   ],
 
@@ -60,6 +45,21 @@
       "title": "$Devhard_Calc",
       "type": "input",
       "hide": "!data.p3.r"
+    }
+  ],
+  "p4": [
+    { "prop": "w", "title": "$Write", "type": "cb" },
+    {
+      "prop": "wresult",
+      "title": "$wResult",
+      "type": "cb",
+      "hide": "!data.p4.w"
+    },
+    {
+      "prop": "calc_out",
+      "title": "$Devhard_Calc_Out",
+      "type": "input",
+      "hide": "!data.p4.w"
     }
   ]
 }

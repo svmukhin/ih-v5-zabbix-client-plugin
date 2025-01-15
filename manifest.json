@@ -3,19 +3,14 @@
   "single": 1,
   "nochannels": 0,
   "innerId": 1,
-  "share_node_folder_fields": ["hostname"],
+  "linkChstatus": 1,
   "channel_folder_popup": {
     "add": [
       { "id": "channel_folder", "title": "New folder" },
-      { "id": "channel_node_folder", "title": "New host" },
       { "id": "channel", "title": "New item" }
     ],
     "copypaste": true,
     "delete": true
-  },
-  "default_channel_node_folder": {
-    "foldertype": "node",
-    "chan": "pNgN"
   },
   "default_channel_folder": {
     "chan": "New folder"
