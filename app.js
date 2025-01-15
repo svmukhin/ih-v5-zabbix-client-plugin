@@ -4,34 +4,26 @@ const { exit } = require("process");
 
 module.exports = async function (plugin) {
   let auth;
-  let apiUrl;
-  let apiUsername;
-  let apiPassword;
+  let apiUrl = plugin.params.data.apiuri;
+  let apiUsername = plugin.params.data.username;
+  let apiPassword = plugin.params.data.password;
+  let interval = 15000;
+  if (plugin.params.data.interval > 0) {
+    interval = plugin.params.data.interval * 1000;
+  }
   let toSend = [];
   let requestId;
-  let hostsArray = [];
-  let itemKeys = [];
-  let interval = 15000;
+  let groupChannels;
 
   sendNext();
-  main(plugin);
+  main(plugin.channels.data);
 
-  async function main(plugin) {
-    apiUrl = plugin.params.data.apiuri;
-    apiUsername = plugin.params.data.username;
-    apiPassword = plugin.params.data.password;
-    if (plugin.params.data.interval > 0) {
-      interval = plugin.params.data.interval * 1000;
-    }
+  async function main(channels) {
+    groupChannels = groupByUniq(channels, "entitytype");
 
-    auth = await authenticate(apiUsername, apiPassword);
+    await authenticate(apiUsername, apiPassword);
 
-    await setHosts(plugin.channels.data);
-
-    let keys = plugin.channels.data.map((channel) => channel.itemkey);
-    itemKeys = [...new Set(keys)];
-
-    monitor(plugin.channels.data);
+    monitor(channels);
   }
 
   function sendNext() {
@@ -43,42 +35,48 @@ module.exports = async function (plugin) {
   }
 
   async function monitor(channels) {
+    channels.forEach((channel) => {
+      channel.processed = false;
+    });
+
     try {
-      const response = await axios.post(apiUrl, {
-        jsonrpc: "2.0",
-        method: "item.get",
-        params: {
-          output: "extend",
-          hostids: hostsArray.map((host) => host.hostid),
-          search: { key_: itemKeys },
-        },
-        auth: auth,
-        id: requestId,
+      Object.keys(groupChannels).forEach(async (key) => {
+        let items;
+        switch (key) {
+          case "Host":
+            items = await getHosts(groupChannels[key].ref);
+            break;
+          case "Item":
+            items = await getItems(groupChannels[key].ref);
+            break;
+          case "Trigger":
+            items = await getTriggers(groupChannels[key].ref);
+            break;
+          default:
+            plugin.log("Unknown item type: " + key);
+        }
+
+        channels.forEach((channel) => {
+          let item = items.find((it) => channel.itemid === it[entitytype]);
+
+          if (item) {
+            toSend.push({
+              id: channel.id,
+              value: item[channel.valuename],
+              chstatus: 0,
+              ts: new Date().getTime(),
+            });
+            channel.processed = true;
+          }
+        });
       });
 
-      requestId++;
-      let items = response.data.result;
-
       channels.forEach((channel) => {
-        let item = items.find((it) => {
-          return (
-            channel.itemkey === it.key_ &&
-            hostsArray.find((obj) => obj.host === channel.hostname).hostid ===
-              it.hostid
-          );
-        });
-
-        if (item) {
-          toSend.push({
-            id: channel.id,
-            value: item.lastvalue,
-            chstatus: 0,
-            ts: new Date().getTime(),
-          });
-        } else {
+        if (!channel.processed) {
           toSend.push({
             id: channel.id,
             chstatus: 1,
+            ts: new Date().getTime(),
           });
         }
       });
@@ -103,34 +101,87 @@ module.exports = async function (plugin) {
       });
 
       requestId++;
-      return response.data.result;
+      auth = response.data.result;
     } catch (error) {
       plugin.log("Error in authenticate: " + util.inspect(error));
-      exit(1, "Error in authenticate");
+      exit(403, "Error in authenticate");
     }
   }
 
-  async function setHosts(channels) {
+  async function getHosts(hostItems) {
     try {
-      let hosts = channels.map((channel) => channel.hostname);
-      let uniqueHosts = [...new Set(hosts)];
-
       const response = await axios.post(apiUrl, {
         jsonrpc: "2.0",
         method: "host.get",
         params: {
-          output: ["hostid", "host"],
-          filter: { host: uniqueHosts },
+          output: "extend",
+          hostids: hostItems.map((host) => host.entityid),
         },
         auth: auth,
         id: requestId,
       });
 
       requestId++;
-      hostsArray = response.data.result;
+      return response.data.result;
     } catch (error) {
       plugin.log("Error in getHostIds: " + util.inspect(error));
-      exit(2, "Error in getHostIds");
     }
+  }
+
+  async function getItems(itemItems) {
+    try {
+      const response = await axios.post(apiUrl, {
+        jsonrpc: "2.0",
+        method: "item.get",
+        params: {
+          output: "extend",
+          itemids: itemItems.map((item) => item.entityid),
+        },
+        auth: auth,
+        id: requestId,
+      });
+
+      requestId++;
+      return response.data.result;
+    } catch (error) {
+      plugin.log("Error in getItems: " + util.inspect(error));
+    }
+  }
+
+  async function getTriggers(triggerItems) {
+    try {
+      const response = await axios.post(apiUrl, {
+        jsonrpc: "2.0",
+        method: "trigger.get",
+        params: {
+          output: "extend",
+          triggerids: triggerItems.map((trigger) => trigger.entityid),
+        },
+        auth: auth,
+        id: requestId,
+      });
+
+      requestId++;
+      return response.data.result;
+    } catch (error) {
+      plugin.log("Error in getTriggers: " + util.inspect(error));
+    }
+  }
+
+  function groupByUniq(objectArray, property) {
+    const uniq = {};
+    return objectArray.reduce((acc, obj) => {
+      let key = obj[property];
+      if (!acc[key]) {
+        acc[key] = {};
+        acc[key].ref = [];
+      }
+      if (uniq[obj.chanId] == undefined) {
+        uniq[obj.chanId] = obj;
+        acc[key].ref.push(obj);
+      }
+
+      return acc;
+    }, {});
   }
 };

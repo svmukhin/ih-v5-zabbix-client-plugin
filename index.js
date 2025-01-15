@@ -13,8 +13,6 @@ const app = require("./app");
     plugin.params.data = await plugin.params.get();
     plugin.channels.data = await plugin.channels.get();
 
-    plugin.log("Channels data: " + util.inspect(plugin.channels.data));
-
     app(plugin);
   } catch (err) {
     plugin.exit(8, `Error: ${util.inspect(err)}`);
