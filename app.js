@@ -176,8 +176,8 @@ module.exports = async function (plugin) {
         acc[key] = {};
         acc[key].ref = [];
       }
-      if (uniq[obj.chanId] == undefined) {
-        uniq[obj.chanId] = obj;
+      if (uniq[obj.entitytype] == undefined) {
+        uniq[obj.entitytype] = obj;
         acc[key].ref.push(obj);
       }
 
