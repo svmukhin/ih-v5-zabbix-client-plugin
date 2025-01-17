@@ -36,6 +36,13 @@ module.exports = async function (plugin) {
 
   async function monitor(channels) {
     channels.forEach((channel) => {
+      if (!channel.processed) {
+        toSend.push({
+          id: channel.id,
+          chstatus: 1,
+          ts: new Date().getTime(),
+        });
+      }
       channel.processed = false;
     });
 
@@ -43,13 +50,13 @@ module.exports = async function (plugin) {
       Object.keys(groupChannels).forEach(async (key) => {
         let items;
         switch (key) {
-          case "Host":
+          case "hostid":
             items = await getHosts(groupChannels[key].ref);
             break;
-          case "Item":
+          case "itemid":
             items = await getItems(groupChannels[key].ref);
             break;
-          case "Trigger":
+          case "triggerid":
             items = await getTriggers(groupChannels[key].ref);
             break;
           default:
@@ -57,7 +64,7 @@ module.exports = async function (plugin) {
         }
 
         channels.forEach((channel) => {
-          let item = items.find((it) => channel.itemid === it[entitytype]);
+          let item = items.find((it) => channel.entityid === it[key]);
 
           if (item) {
             toSend.push({
@@ -69,17 +76,7 @@ module.exports = async function (plugin) {
             channel.processed = true;
           }
         });
-      });
-
-      channels.forEach((channel) => {
-        if (!channel.processed) {
-          toSend.push({
-            id: channel.id,
-            chstatus: 1,
-            ts: new Date().getTime(),
-          });
-        }
-      });
+      });      
     } catch (error) {
       plugin.log("Error in monitor: " + util.inspect(error));
     }
@@ -176,8 +173,8 @@ module.exports = async function (plugin) {
         acc[key] = {};
         acc[key].ref = [];
       }
-      if (uniq[obj.entitytype] == undefined) {
-        uniq[obj.entitytype] = obj;
+      if (uniq[obj.entityid] == undefined) {
+        uniq[obj.entityid] = obj;
         acc[key].ref.push(obj);
       }
 
