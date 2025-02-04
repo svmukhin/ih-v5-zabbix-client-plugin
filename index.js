@@ -11,7 +11,6 @@ const app = require("./app");
     plugin.log("Plugin zabbix client has started.", 0);
 
     plugin.params.data = await plugin.params.get();
-    plugin.channels.data = await plugin.channels.get();
 
     app(plugin);
   } catch (err) {

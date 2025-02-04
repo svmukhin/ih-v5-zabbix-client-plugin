@@ -1,8 +1,11 @@
 const util = require("util");
 const axios = require("axios");
+const ReadWriteLock = require("./lib/readwritelock");
 const { exit } = require("process");
 
 module.exports = async function (plugin) {
+  const lock = new ReadWriteLock();
+
   let auth;
   let apiUrl = plugin.params.data.apiuri;
   let apiUsername = plugin.params.data.username;
@@ -15,15 +18,54 @@ module.exports = async function (plugin) {
   let requestId;
   let groupChannels;
 
-  sendNext();
-  main(plugin.channels.data);
+  let channels = await plugin.channels.get();
 
-  async function main(channels) {
+  sendNext();
+  main();
+
+  plugin.onChange("channels", async (data) => {
+    let changedChannels = groupByUniq(data, "op");
+    await lock.writeLock();
+    try {
+      Object.keys(changedChannels).forEach(async (key) => {
+        switch (key) {
+          case "add":
+            changedChannels[key].ref.forEach((channel) => {
+              channels.push(channel);
+            });
+            break;
+          case "update":
+            changedChannels[key].ref.forEach((channel) => {
+              let index = channels.findIndex((ch) => ch.id === channel.id);
+              if (index > -1) {
+                channels.splice(index, 1, channel);
+              }
+            });
+            break;
+          case "delete":
+            changedChannels[key].ref.forEach((channel) => {
+              let index = channels.findIndex((ch) => ch.id === channel.id);
+              if (index > -1) {
+                channels.splice(index, 1);
+              }
+            });
+            break;
+          default:
+            plugin.log("Unknown operation: " + key);
+        }
+      });
+      groupChannels = groupByUniq(channels, "entitytype");
+    } finally {
+      lock.writeUnlock();
+    }
+  });
+
+  async function main() {
     groupChannels = groupByUniq(channels, "entitytype");
 
     await authenticate(apiUsername, apiPassword);
 
-    monitor(channels);
+    monitor();
   }
 
   function sendNext() {
@@ -34,19 +76,20 @@ module.exports = async function (plugin) {
     setTimeout(sendNext, interval / 2);
   }
 
-  async function monitor(channels) {
-    channels.forEach((channel) => {
-      if (!channel.processed) {
-        toSend.push({
-          id: channel.id,
-          chstatus: 1,
-          ts: new Date().getTime(),
-        });
-      }
-      channel.processed = false;
-    });
-
+  async function monitor() {
+    await lock.readLock();
     try {
+      channels.forEach((channel) => {
+        if (!channel.processed) {
+          toSend.push({
+            id: channel.id,
+            chstatus: 1,
+            ts: new Date().getTime(),
+          });
+        }
+        channel.processed = false;
+      });
+
       Object.keys(groupChannels).forEach(async (key) => {
         let items;
         switch (key) {
@@ -76,13 +119,15 @@ module.exports = async function (plugin) {
             channel.processed = true;
           }
         });
-      });      
+      });
     } catch (error) {
       plugin.log("Error in monitor: " + util.inspect(error));
+    } finally {
+      lock.readUnlock();
     }
 
     setTimeout(() => {
-      monitor(channels);
+      monitor();
     }, interval);
   }
 
