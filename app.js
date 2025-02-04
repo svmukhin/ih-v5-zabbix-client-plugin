@@ -27,7 +27,7 @@ module.exports = async function (plugin) {
     let changedChannels = groupByUniq(data, "op");
     await lock.writeLock();
     try {
-      Object.keys(changedChannels).forEach(async (key) => {
+      Object.keys(changedChannels).forEach((key) => {
         switch (key) {
           case "add":
             changedChannels[key].ref.forEach((channel) => {
@@ -36,15 +36,17 @@ module.exports = async function (plugin) {
             break;
           case "update":
             changedChannels[key].ref.forEach((channel) => {
-              let index = channels.findIndex((ch) => ch.id === channel.id);
+              let index = channels.findIndex((ch) => ch._id === channel._id);
               if (index > -1) {
                 channels.splice(index, 1, channel);
+              } else {
+                channels.push(channel);
               }
             });
             break;
           case "delete":
             changedChannels[key].ref.forEach((channel) => {
-              let index = channels.findIndex((ch) => ch.id === channel.id);
+              let index = channels.findIndex((ch) => ch._id === channel._id);
               if (index > -1) {
                 channels.splice(index, 1);
               }
@@ -77,7 +79,7 @@ module.exports = async function (plugin) {
   }
 
   async function monitor() {
-    await lock.readLock();
+    await lock.writeLock();
     try {
       channels.forEach((channel) => {
         if (!channel.processed) {
@@ -89,43 +91,57 @@ module.exports = async function (plugin) {
         }
         channel.processed = false;
       });
-
-      Object.keys(groupChannels).forEach(async (key) => {
-        let items;
-        switch (key) {
-          case "hostid":
-            items = await getHosts(groupChannels[key].ref);
-            break;
-          case "itemid":
-            items = await getItems(groupChannels[key].ref);
-            break;
-          case "triggerid":
-            items = await getTriggers(groupChannels[key].ref);
-            break;
-          default:
-            plugin.log("Unknown item type: " + key);
-        }
-
-        channels.forEach((channel) => {
-          let item = items.find((it) => channel.entityid === it[key]);
-
-          if (item) {
-            toSend.push({
-              id: channel.id,
-              value: item[channel.valuename],
-              chstatus: 0,
-              ts: new Date().getTime(),
-            });
-            channel.processed = true;
-          }
-        });
-      });
-    } catch (error) {
-      plugin.log("Error in monitor: " + util.inspect(error));
     } finally {
-      lock.readUnlock();
+      lock.writeUnlock();
     }
 
+    try {
+      await Promise.all(
+        Object.keys(groupChannels).map(async (key) => {
+          let items;
+          await lock.readLock();
+          try {
+            switch (key) {
+              case "hostid":
+                items = await getHosts(groupChannels[key].ref);
+                break;
+              case "itemid":
+                items = await getItems(groupChannels[key].ref);
+                break;
+              case "triggerid":
+                items = await getTriggers(groupChannels[key].ref);
+                break;
+              default:
+                plugin.log("Unknown item type: " + key);
+            }
+          } finally {
+            lock.readUnlock();
+          }
+
+          await lock.writeLock();
+          try {
+            channels.forEach((channel) => {
+              let item = items?.find((it) => channel.entityid === it[key]);
+
+              if (item) {
+                toSend.push({
+                  id: channel.id,
+                  value: item[channel.valuename],
+                  chstatus: 0,
+                  ts: new Date().getTime(),
+                });
+                channel.processed = true;
+              }
+            });
+          } finally {
+            lock.writeUnlock();
+          }
+        })
+      );
+    } catch (error) {
+      plugin.log("Error in monitor: " + util.inspect(error));
+    }
+    
     setTimeout(() => {
       monitor();
     }, interval);
