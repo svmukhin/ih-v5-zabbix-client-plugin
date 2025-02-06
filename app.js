@@ -1,5 +1,6 @@
 const util = require("util");
 const axios = require("axios");
+const GroupedData = require("./lib/grouped-data");
 const { exit } = require("process");
 
 module.exports = async function (plugin) {
@@ -13,49 +14,42 @@ module.exports = async function (plugin) {
   }
   let toSend = [];
   let requestId;
-  let groupChannels;
-
-  let channels = await plugin.channels.get();
+  const groupedChannels = new GroupedData("entitytype");
 
   sendNext();
   main();
 
   plugin.onChange("channels", async (data) => {
+    const channels = await plugin.channels.get();
     let changedChannels = groupByUniq(data, "op");
     Object.keys(changedChannels).forEach((key) => {
       switch (key) {
         case "add":
-          changedChannels[key].ref.forEach((channel) => {
-            channels.push(channel);
-          });
-          break;
         case "update":
           changedChannels[key].ref.forEach((channel) => {
             let index = channels.findIndex((ch) => ch._id === channel._id);
-            if (index > -1) {
-              channels.splice(index, 1, channel);
-            } else {
-              channels.push(channel);
+            if (index !== -1) {
+              groupedChannels.addOrUpdate(channel);
             }
           });
           break;
         case "delete":
           changedChannels[key].ref.forEach((channel) => {
-            let index = channels.findIndex((ch) => ch._id === channel._id);
-            if (index > -1) {
-              channels.splice(index, 1);
-            }
+            groupedChannels.delete(channel._id);
           });
           break;
         default:
           plugin.log("Unknown operation: " + key);
       }
     });
-    groupChannels = groupByUniq(channels, "entitytype");
   });
 
   async function main() {
-    groupChannels = groupByUniq(channels, "entitytype");
+    let channels = await plugin.channels.get();
+
+    channels.forEach((channel) => {
+      groupedChannels.addOrUpdate(channel);
+    });
 
     await authenticate(apiUsername, apiPassword);
 
@@ -71,38 +65,27 @@ module.exports = async function (plugin) {
   }
 
   async function monitor() {
-    channels.forEach((channel) => {
-      if (!channel.processed) {
-        toSend.push({
-          id: channel.id,
-          chstatus: 1,
-          ts: new Date().getTime(),
-        });
-      }
-      channel.processed = false;
-    });
-
     try {
       await Promise.all(
-        Object.keys(groupChannels).map(async (key) => {
+        groupedChannels.getCategories().map(async (category) => {
+          const channels = await groupedChannels.getByCategory(category);
           let items;
-          switch (key) {
+          switch (category) {
             case "hostid":
-              items = await getHosts(groupChannels[key].ref);
+              items = await getHosts(channels);
               break;
             case "itemid":
-              items = await getItems(groupChannels[key].ref);
+              items = await getItems(channels);
               break;
             case "triggerid":
-              items = await getTriggers(groupChannels[key].ref);
+              items = await getTriggers(channels);
               break;
             default:
-              plugin.log("Unknown item type: " + key);
+              plugin.log("Unknown item type: " + category);
           }
 
           channels.forEach((channel) => {
-            let item = items?.find((it) => channel.entityid === it[key]);
-
+            item = items?.find((it) => channel.entityid == it[category]);
             if (item) {
               toSend.push({
                 id: channel.id,
@@ -110,7 +93,12 @@ module.exports = async function (plugin) {
                 chstatus: 0,
                 ts: new Date().getTime(),
               });
-              channel.processed = true;
+            } else {
+              toSend.push({
+                id: channel.id,
+                chstatus: 1,
+                ts: new Date().getTime(),
+              });
             }
           });
         })
