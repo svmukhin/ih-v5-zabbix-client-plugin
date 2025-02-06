@@ -67,7 +67,7 @@ module.exports = async function (plugin) {
   async function monitor() {
     try {
       await Promise.all(
-        groupedChannels.getCategories().map(async (category) => {
+        (await groupedChannels.getCategories()).map(async (category) => {
           const channels = await groupedChannels.getByCategory(category);
           let items;
           switch (category) {
