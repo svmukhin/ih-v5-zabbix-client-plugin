@@ -1,11 +1,8 @@
 const util = require("util");
 const axios = require("axios");
-const ReadWriteLock = require("./lib/readwritelock");
 const { exit } = require("process");
 
 module.exports = async function (plugin) {
-  const lock = new ReadWriteLock();
-
   let auth;
   let apiUrl = plugin.params.data.apiuri;
   let apiUsername = plugin.params.data.username;
@@ -25,41 +22,36 @@ module.exports = async function (plugin) {
 
   plugin.onChange("channels", async (data) => {
     let changedChannels = groupByUniq(data, "op");
-    await lock.writeLock();
-    try {
-      Object.keys(changedChannels).forEach((key) => {
-        switch (key) {
-          case "add":
-            changedChannels[key].ref.forEach((channel) => {
+    Object.keys(changedChannels).forEach((key) => {
+      switch (key) {
+        case "add":
+          changedChannels[key].ref.forEach((channel) => {
+            channels.push(channel);
+          });
+          break;
+        case "update":
+          changedChannels[key].ref.forEach((channel) => {
+            let index = channels.findIndex((ch) => ch._id === channel._id);
+            if (index > -1) {
+              channels.splice(index, 1, channel);
+            } else {
               channels.push(channel);
-            });
-            break;
-          case "update":
-            changedChannels[key].ref.forEach((channel) => {
-              let index = channels.findIndex((ch) => ch._id === channel._id);
-              if (index > -1) {
-                channels.splice(index, 1, channel);
-              } else {
-                channels.push(channel);
-              }
-            });
-            break;
-          case "delete":
-            changedChannels[key].ref.forEach((channel) => {
-              let index = channels.findIndex((ch) => ch._id === channel._id);
-              if (index > -1) {
-                channels.splice(index, 1);
-              }
-            });
-            break;
-          default:
-            plugin.log("Unknown operation: " + key);
-        }
-      });
-      groupChannels = groupByUniq(channels, "entitytype");
-    } finally {
-      lock.writeUnlock();
-    }
+            }
+          });
+          break;
+        case "delete":
+          changedChannels[key].ref.forEach((channel) => {
+            let index = channels.findIndex((ch) => ch._id === channel._id);
+            if (index > -1) {
+              channels.splice(index, 1);
+            }
+          });
+          break;
+        default:
+          plugin.log("Unknown operation: " + key);
+      }
+    });
+    groupChannels = groupByUniq(channels, "entitytype");
   });
 
   async function main() {
@@ -79,69 +71,54 @@ module.exports = async function (plugin) {
   }
 
   async function monitor() {
-    await lock.writeLock();
-    try {
-      channels.forEach((channel) => {
-        if (!channel.processed) {
-          toSend.push({
-            id: channel.id,
-            chstatus: 1,
-            ts: new Date().getTime(),
-          });
-        }
-        channel.processed = false;
-      });
-    } finally {
-      lock.writeUnlock();
-    }
+    channels.forEach((channel) => {
+      if (!channel.processed) {
+        toSend.push({
+          id: channel.id,
+          chstatus: 1,
+          ts: new Date().getTime(),
+        });
+      }
+      channel.processed = false;
+    });
 
     try {
       await Promise.all(
         Object.keys(groupChannels).map(async (key) => {
           let items;
-          await lock.readLock();
-          try {
-            switch (key) {
-              case "hostid":
-                items = await getHosts(groupChannels[key].ref);
-                break;
-              case "itemid":
-                items = await getItems(groupChannels[key].ref);
-                break;
-              case "triggerid":
-                items = await getTriggers(groupChannels[key].ref);
-                break;
-              default:
-                plugin.log("Unknown item type: " + key);
+          switch (key) {
+            case "hostid":
+              items = await getHosts(groupChannels[key].ref);
+              break;
+            case "itemid":
+              items = await getItems(groupChannels[key].ref);
+              break;
+            case "triggerid":
+              items = await getTriggers(groupChannels[key].ref);
+              break;
+            default:
+              plugin.log("Unknown item type: " + key);
+          }
+
+          channels.forEach((channel) => {
+            let item = items?.find((it) => channel.entityid === it[key]);
+
+            if (item) {
+              toSend.push({
+                id: channel.id,
+                value: item[channel.valuename],
+                chstatus: 0,
+                ts: new Date().getTime(),
+              });
+              channel.processed = true;
             }
-          } finally {
-            lock.readUnlock();
-          }
-
-          await lock.writeLock();
-          try {
-            channels.forEach((channel) => {
-              let item = items?.find((it) => channel.entityid === it[key]);
-
-              if (item) {
-                toSend.push({
-                  id: channel.id,
-                  value: item[channel.valuename],
-                  chstatus: 0,
-                  ts: new Date().getTime(),
-                });
-                channel.processed = true;
-              }
-            });
-          } finally {
-            lock.writeUnlock();
-          }
+          });
         })
       );
     } catch (error) {
       plugin.log("Error in monitor: " + util.inspect(error));
     }
-    
+
     setTimeout(() => {
       monitor();
     }, interval);
